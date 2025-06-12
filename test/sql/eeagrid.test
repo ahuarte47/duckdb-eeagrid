@@ -1,0 +1,23 @@
+# name: test/sql/eeagrid.test
+# description: test eeagrid extension
+# group: [sql]
+
+# Before we load the extension, this will fail
+statement error
+SELECT eeagrid('Sam');
+----
+Catalog Error: Scalar Function with name eeagrid does not exist!
+
+# Require statement will ensure this test is run with this extension loaded
+require eeagrid
+
+# Confirm the extension works
+query I
+SELECT eeagrid('Sam');
+----
+Eeagrid Sam 🐥
+
+query I
+SELECT eeagrid_openssl_version('Michael') ILIKE 'Eeagrid Michael, my linked OpenSSL version is OpenSSL%';
+----
+true
