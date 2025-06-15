@@ -3,40 +3,110 @@
 #include "eeagrid_extension.hpp"
 #include "duckdb.hpp"
 #include "duckdb/common/exception.hpp"
-#include "duckdb/common/string_util.hpp"
+#include "duckdb/catalog/catalog_entry/function_entry.hpp"
 #include "duckdb/function/scalar_function.hpp"
 #include "duckdb/main/extension_util.hpp"
-#include <duckdb/parser/parsed_data/create_scalar_function_info.hpp>
-
-// OpenSSL linked through vcpkg
-#include <openssl/opensslv.h>
 
 namespace duckdb {
 
-inline void EeagridScalarFun(DataChunk &args, ExpressionState &state, Vector &result) {
-	auto &name_vector = args.data[0];
-	UnaryExecutor::Execute<string_t, string_t>(name_vector, result, args.size(), [&](string_t name) {
-		return StringVector::AddString(result, "Eeagrid " + name.GetString() + " 🐥");
-	});
+namespace {
+
+//! Register a function in the database and add its metadata.
+static void RegisterFunction(DatabaseInstance &db, ScalarFunction function, const string &description,
+                             const string &example, InsertionOrderPreservingMap<string> &tags) {
+	// Register the function
+	ExtensionUtil::RegisterFunction(db, function);
+
+	auto &catalog = Catalog::GetSystemCatalog(db);
+	auto transaction = CatalogTransaction::GetSystemTransaction(db);
+	auto &schema = catalog.GetSchema(transaction, DEFAULT_SCHEMA);
+	auto catalog_entry = schema.GetEntry(transaction, CatalogType::SCALAR_FUNCTION_ENTRY, function.name);
+	if (!catalog_entry) {
+		// This should not happen, we just registered the function
+		throw InternalException("Function with name \"%s\" not found.", function.name.c_str());
+	}
+
+	auto &func_entry = catalog_entry->Cast<FunctionEntry>();
+
+	// Fill a function description and add it to the function entry
+	FunctionDescription func_description;
+	if (!description.empty()) {
+		func_description.description = description;
+	}
+	if (!example.empty()) {
+		func_description.examples.push_back(example);
+	}
+	for (const auto &tag : tags) {
+		func_entry.tags.insert(tag.first, tag.second);
+	}
+
+	func_entry.descriptions.push_back(func_description);
 }
 
-inline void EeagridOpenSSLVersionScalarFun(DataChunk &args, ExpressionState &state, Vector &result) {
-	auto &name_vector = args.data[0];
-	UnaryExecutor::Execute<string_t, string_t>(name_vector, result, args.size(), [&](string_t name) {
-		return StringVector::AddString(result, "Eeagrid " + name.GetString() + ", my linked OpenSSL version is " +
-		                                           OPENSSL_VERSION_TEXT);
-	});
-}
+//======================================================================================================================
+// EEA_Grid
+//======================================================================================================================
+
+struct EEA_Grid {
+
+	//! Returns the EEA Reference Grid code to a given XY coordinate (EPSG:3035).
+	inline static void CoordXY2GridNum(DataChunk &args, ExpressionState &state, Vector &result) {
+		D_ASSERT(args.data.size() == 2);
+
+		BinaryExecutor::Execute<int64_t, int64_t, int64_t>(args.data[0], args.data[1], result, args.size(),
+		                                                   [&](int64_t x, int64_t y) { return 0; });
+	}
+
+	//! Returns the X-coordinate (EPSG:3035) of the grid cell corresponding to a given EEA Reference Grid code.
+	inline static void GridNum2CoordX(DataChunk &args, ExpressionState &state, Vector &result) {
+		D_ASSERT(args.data.size() == 1);
+
+		UnaryExecutor::Execute<int64_t, int64_t>(args.data[0], result, args.size(),
+		                                         [&](int64_t grid_num) { return 0; });
+	}
+
+	//! Returns the Y-coordinate (EPSG:3035) of the grid cell corresponding to a given EEA Reference Grid code.
+	inline static void GridNum2CoordY(DataChunk &args, ExpressionState &state, Vector &result) {
+		D_ASSERT(args.data.size() == 1);
+
+		UnaryExecutor::Execute<int64_t, int64_t>(args.data[0], result, args.size(),
+		                                         [&](int64_t grid_num) { return 0; });
+	}
+
+	static void Register(DatabaseInstance &db) {
+
+		InsertionOrderPreservingMap<string> tags;
+		tags.insert("ext", "eeagrid");
+		tags.insert("category", "scalar");
+
+		RegisterFunction(db,
+		                 ScalarFunction("EEA_CoordXY2GridNum", {LogicalType::BIGINT, LogicalType::BIGINT},
+		                                LogicalType::BIGINT, EEA_Grid::CoordXY2GridNum),
+		                 "Returns the EEA Reference Grid code to a given XY coordinate (EPSG:3035).",
+		                 "SELECT CoordXY2GridNum();", tags);
+
+		RegisterFunction(
+		    db,
+		    ScalarFunction("EEA_GridNum2CoordX", {LogicalType::BIGINT}, LogicalType::BIGINT, EEA_Grid::GridNum2CoordX),
+		    "Returns the X-coordinate (EPSG:3035) of the grid cell corresponding to a given EEA Reference Grid code.",
+		    "SELECT EEA_GridNum2CoordX();", tags);
+
+		RegisterFunction(
+		    db,
+		    ScalarFunction("EEA_GridNum2CoordY", {LogicalType::BIGINT}, LogicalType::BIGINT, EEA_Grid::GridNum2CoordY),
+		    "Returns the Y-coordinate (EPSG:3035) of the grid cell corresponding to a given EEA Reference Grid code.",
+		    "SELECT EEA_GridNum2CoordY();", tags);
+	}
+};
+
+} // namespace
+
+// ######################################################################################################################
+//  Register Functions & Extension metadata
+// ######################################################################################################################
 
 static void LoadInternal(DatabaseInstance &instance) {
-	// Register a scalar function
-	auto eeagrid_scalar_function = ScalarFunction("eeagrid", {LogicalType::VARCHAR}, LogicalType::VARCHAR, EeagridScalarFun);
-	ExtensionUtil::RegisterFunction(instance, eeagrid_scalar_function);
-
-	// Register another scalar function
-	auto eeagrid_openssl_version_scalar_function = ScalarFunction("eeagrid_openssl_version", {LogicalType::VARCHAR},
-	                                                            LogicalType::VARCHAR, EeagridOpenSSLVersionScalarFun);
-	ExtensionUtil::RegisterFunction(instance, eeagrid_openssl_version_scalar_function);
+	EEA_Grid::Register(instance);
 }
 
 void EeagridExtension::Load(DuckDB &db) {
