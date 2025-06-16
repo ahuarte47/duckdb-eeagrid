@@ -129,6 +129,30 @@ struct EEA_Grid {
 		});
 	}
 
+	//! Returns the grid code at 100 m resolution given an EEA reference grid code.
+	inline static void GridNumAt100m(DataChunk &args, ExpressionState &state, Vector &result) {
+		D_ASSERT(args.data.size() == 1);
+
+		UnaryExecutor::Execute<int64_t, int64_t>(args.data[0], result, args.size(),
+		                                         [&](int64_t grid_num) { return (grid_num & 1152921504606781440LL); });
+	}
+
+	//! Returns the grid code at 1 km resolution given an EEA reference grid code.
+	inline static void GridNumAt1km(DataChunk &args, ExpressionState &state, Vector &result) {
+		D_ASSERT(args.data.size() == 1);
+
+		UnaryExecutor::Execute<int64_t, int64_t>(args.data[0], result, args.size(),
+		                                         [&](int64_t grid_num) { return (grid_num & 1152921504590069760LL); });
+	}
+
+	//! Returns the grid code at 10 km resolution given an EEA reference grid code.
+	inline static void GridNumAt10km(DataChunk &args, ExpressionState &state, Vector &result) {
+		D_ASSERT(args.data.size() == 1);
+
+		UnaryExecutor::Execute<int64_t, int64_t>(args.data[0], result, args.size(),
+		                                         [&](int64_t grid_num) { return (grid_num & 1152921500311879680LL); });
+	}
+
 	static void Register(DatabaseInstance &db) {
 
 		InsertionOrderPreservingMap<string> tags;
@@ -152,6 +176,23 @@ struct EEA_Grid {
 		    ScalarFunction("EEA_GridNum2CoordY", {LogicalType::BIGINT}, LogicalType::BIGINT, EEA_Grid::GridNum2CoordY),
 		    "Returns the Y-coordinate (EPSG:3035) of the grid cell corresponding to a given EEA Reference Grid code.",
 		    "SELECT EEA_GridNum2CoordY(23090257455218688); -> 2871400", tags);
+
+		RegisterFunction(
+		    db,
+		    ScalarFunction("EEA_GridNumAt100m", {LogicalType::BIGINT}, LogicalType::BIGINT, EEA_Grid::GridNumAt100m),
+		    "Returns the Grid code at 100 m resolution given an EEA reference Grid code.",
+		    "SELECT EEA_GridNumAt100m(23090257455218688); -> 23090257455218688", tags);
+
+		RegisterFunction(
+		    db, ScalarFunction("EEA_GridNumAt1km", {LogicalType::BIGINT}, LogicalType::BIGINT, EEA_Grid::GridNumAt1km),
+		    "Returns the Grid code at 1 km resolution given an EEA reference Grid code.",
+		    "SELECT EEA_GridNumAt1km(23090257455218688); -> 23090257448665088", tags);
+
+		RegisterFunction(
+		    db,
+		    ScalarFunction("EEA_GridNumAt10km", {LogicalType::BIGINT}, LogicalType::BIGINT, EEA_Grid::GridNumAt10km),
+		    "Returns the Grid code at 10 km resolution given an EEA reference Grid code.",
+		    "SELECT EEA_GridNumAt10km(23090257455218688); -> 23090255284404224", tags);
 	}
 };
 

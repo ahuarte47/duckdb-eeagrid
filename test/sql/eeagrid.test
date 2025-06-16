@@ -28,7 +28,8 @@ SELECT EEA_GridNum2CoordY(23090257455218688);
 ----
 2871400
 
-# Test EEA_Grid functions with known pair of XY-coordinates & GridNum codes
+# Test EEA_Grid functions with known pair of XY-coordinates & GridNum identifiers
+
 query I
 WITH __input AS (
     SELECT
@@ -51,3 +52,20 @@ WHERE
 ;
 ----
 0
+
+# Test EEA_Grid functions to transform GridNum identifier between resolutions
+
+query I
+SELECT EEA_GridNumAt100m(23090257455218688);
+----
+23090257455218688
+
+query I
+SELECT EEA_GridNumAt1km(23090257455218688);
+----
+23090257448665088
+
+query I
+SELECT EEA_GridNumAt10km(23090257455218688);
+----
+23090255284404224
