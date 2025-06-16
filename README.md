@@ -1,58 +1,104 @@
-# Eeagrid
+# DuckDB EEA Reference Grid Extension
 
-This repository is based on https://github.com/duckdb/extension-template, check it out if you want to build and ship your own DuckDB extension.
+## What is this?
 
----
+This is an extension for DuckDB that adds support for working with the [EEA Reference Grid System](https://sdi.eea.europa.eu/catalogue/srv/api/records/aac8379a-5c4e-445c-b2ef-23a6a2701ef0/attachments/eea_reference_grid_v1.pdf).
 
-This extension, Eeagrid, allow you to ... <extension_goal>.
+The **EEA Reference Grid** is a standardized spatial grid system used across Europe for environmental data analysis and reporting. It is maintained by the [European Environment Agency](https://www.eea.europa.eu/en) (EEA) and forms the basis for aggregating and exchanging geospatial data in a consistent format:
 
+* `Coordinate Reference System (CRS)`: ETRS89 / LAEA Europe ([EPSG:3035](https://epsg.io/3035)), which minimizes area distortion across Europe. The Geodetic Datum is the European Terrestrial Reference System 1989 (EPSG:6258). The Lambert Azimuthal Equal Area (LAEA) projection is
+centred at 10°E, 52°N. Coordinates are based on a false Easting of 4321000 meters, and a false Northing of 3210000 meters.
+* `Supported resolutions`: Typically available at 10 km, 1 km, and 100 m resolutions.
+* `Structure`: Regular square grid with unique cell codes and identifiers assigned based on position and resolution.
+* `Purpose`: Enables harmonized spatial analysis, mapping, and cross-border environmental assessments.
 
-## Building
-### Managing dependencies
-DuckDB extensions uses VCPKG for dependency management. Enabling VCPKG is very simple: follow the [installation instructions](https://vcpkg.io/en/getting-started) or just run the following:
-```shell
-git clone https://github.com/Microsoft/vcpkg.git
-./vcpkg/bootstrap-vcpkg.sh
-export VCPKG_TOOLCHAIN_PATH=`pwd`/vcpkg/scripts/buildsystems/vcpkg.cmake
+This grid system is widely used in European environmental datasets, including air quality, land use, biodiversity, and climate change indicators.
+
+The extension provides functions to calculate grid cell identifiers (`INT64`) from XY coordinates based on the `EPSG:3035` coordinate reference system, and vice versa. Please see the [function table](docs/functions.md) for the current implementation status.
+
+## How do I get it?
+
+### Building from source
+
+This extension is based on the [DuckDB extension template](https://github.com/duckdb/extension-template).
+
+### Loading from community (TODO)
+
+The DuckDB **EEA Reference Grid extension** is not yet available as a signed [community extension](https://duckdb.org/community_extensions/list_of_extensions) and currently requires the use of the unsigned flag to be loaded.
+
+Our intention is to submit this extension for inclusion in the official DuckDB community extensions registry. If accepted, it will be possible to install and load the extension in any DuckDB instance using the following commands:
+
+```sql
+INSTALL eeagrid FROM community;
+LOAD eeagrid;
 ```
-Note: VCPKG is only required for extensions that want to rely on it for dependency management. If you want to develop an extension without dependencies, or want to do your own dependency management, just skip this step. Note that the example extension uses VCPKG to build with a dependency for instructive purposes, so when skipping this step the build may not work without removing the dependency.
 
-### Build steps
-Now to build the extension, run:
-```sh
-make
+## Example Usage
+
+```sql
+LOAD eeagrid;
+
+SELECT EEA_CoordXY2GridNum(5078600, 2871400);
+----
+23090257455218688
+
+SELECT EEA_GridNum2CoordX(23090257455218688);
+----
+5078600
+
+SELECT EEA_GridNum2CoordY(23090257455218688);
+----
+2871400
+
+SELECT EEA_GridNumAt100m(23090257455218688);
+----
+23090257455218688
+
+query I
+SELECT EEA_GridNumAt1km(23090257455218688);
+----
+23090257448665088
+
+query I
+SELECT EEA_GridNumAt10km(23090257455218688);
+----
+23090255284404224
 ```
-The main binaries that will be built are:
-```sh
+
+### Supported Functions and Documentation
+
+The full list of functions and their documentation is available in the [function reference](docs/functions.md)
+
+## How do I build it?
+
+### Dependencies
+
+You need a recent version of CMake (3.20) and a C++11 compatible compiler.
+
+We also highly recommend that you install [Ninja](https://ninja-build.org) which you can select when building by setting the `GEN=ninja` environment variable.
+```
+git clone --recurse-submodules https://github.com/ahuarte47/duckdb-eeagrid
+cd duckdb-eeagrid
+make release
+```
+
+You can then invoke the built DuckDB (with the extension statically linked)
+```
 ./build/release/duckdb
-./build/release/test/unittest
-./build/release/extension/eeagrid/eeagrid.duckdb_extension
-```
-- `duckdb` is the binary for the duckdb shell with the extension code automatically loaded.
-- `unittest` is the test runner of duckdb. Again, the extension is already linked into the binary.
-- `eeagrid.duckdb_extension` is the loadable binary as it would be distributed.
-
-## Running the extension
-To run the extension code, simply start the shell with `./build/release/duckdb`.
-
-Now we can use the features from the extension directly in DuckDB. The template contains a single scalar function `eeagrid()` that takes a string arguments and returns a string:
-```
-D select eeagrid('Jane') as result;
-┌───────────────┐
-│    result     │
-│    varchar    │
-├───────────────┤
-│ Eeagrid Jane 🐥 │
-└───────────────┘
 ```
 
-## Running the tests
+Please see the Makefile for more options, or the extension template documentation for more details.
+
+### Running the tests
+
 Different tests can be created for DuckDB extensions. The primary way of testing DuckDB extensions should be the SQL tests in `./test/sql`. These SQL tests can be run using:
+
 ```sh
 make test
 ```
 
 ### Installing the deployed binaries
+
 To install your extension binaries from S3, you will need to do two things. Firstly, DuckDB should be launched with the
 `allow_unsigned_extensions` option set to true. How to set this will depend on the client you're using. Some examples:
 
@@ -81,6 +127,8 @@ DuckDB. To specify a specific version, you can pass the version instead.
 
 After running these steps, you can install and load your extension using the regular INSTALL/LOAD commands in DuckDB:
 ```sql
-INSTALL eeagrid
-LOAD eeagrid
+INSTALL eeagrid;
+LOAD eeagrid;
 ```
+
+Enjoy!
