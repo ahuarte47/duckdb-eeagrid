@@ -29,7 +29,7 @@ Returns the EEA Reference Grid code to a given XY coordinate (EPSG:3035).
 #### Example
 
 ```sql
-SELECT CoordXY2GridNum();
+SELECT CoordXY2GridNum(5078600, 2871400); -> 23090257455218688
 ```
 
 ----
@@ -50,7 +50,7 @@ Returns the X-coordinate (EPSG:3035) of the grid cell corresponding to a given E
 #### Example
 
 ```sql
-SELECT EEA_GridNum2CoordX();
+SELECT EEA_GridNum2CoordX(23090257455218688); -> 5078600
 ```
 
 ----
@@ -71,7 +71,7 @@ Returns the Y-coordinate (EPSG:3035) of the grid cell corresponding to a given E
 #### Example
 
 ```sql
-SELECT EEA_GridNum2CoordY();
+SELECT EEA_GridNum2CoordY(23090257455218688); -> 2871400
 ```
 
 ----
