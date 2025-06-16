@@ -14,16 +14,40 @@ require eeagrid
 # Confirm the extension works
 
 query I
-SELECT EEA_CoordXY2GridNum(0, 0);
+SELECT EEA_CoordXY2GridNum(5078600, 2871400);
 ----
-0
+23090257455218688
 
 query I
-SELECT EEA_GridNum2CoordX(0);
+SELECT EEA_GridNum2CoordX(23090257455218688);
 ----
-0
+5078600
 
 query I
-SELECT EEA_GridNum2CoordY(0);
+SELECT EEA_GridNum2CoordY(23090257455218688);
+----
+2871400
+
+# Test EEA_Grid functions with known pair of XY-coordinates & GridNum codes
+query I
+WITH __input AS (
+    SELECT
+        x, y, GridNum,
+        EEA_GridNum2CoordX(GridNum) AS x2,
+        EEA_GridNum2CoordY(GridNum) AS y2,
+        EEA_CoordXY2GridNum(x, y) AS GridNum2,
+        (x - x2) AS diff_x,
+        (y - y2) AS diff_y,
+        (GridNum - GridNum2) AS diff_g
+    FROM
+        './test/data/sample.csv'
+)
+SELECT
+    COUNT(*) AS c
+FROM
+    __input
+WHERE
+    diff_x != 0 OR diff_y != 0 OR diff_g != 0
+;
 ----
 0

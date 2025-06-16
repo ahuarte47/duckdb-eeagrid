@@ -49,28 +49,89 @@ static void RegisterFunction(DatabaseInstance &db, ScalarFunction function, cons
 
 struct EEA_Grid {
 
+	//! Returns the sign of a value: 1 for positive, -1 for negative, and 0 for zero.
+	inline static int sign(int64_t val) {
+		return (val > 0) - (val < 0);
+	}
+
 	//! Returns the EEA Reference Grid code to a given XY coordinate (EPSG:3035).
 	inline static void CoordXY2GridNum(DataChunk &args, ExpressionState &state, Vector &result) {
 		D_ASSERT(args.data.size() == 2);
 
-		BinaryExecutor::Execute<int64_t, int64_t, int64_t>(args.data[0], args.data[1], result, args.size(),
-		                                                   [&](int64_t x, int64_t y) { return 0; });
+		constexpr int64_t p13 = int64_t(1) << 52; // 16^13 = 2^52
+		constexpr int64_t p12 = int64_t(1) << 48; // 16^12 = 2^48
+		constexpr int64_t p11 = int64_t(1) << 44; // 16^11 = 2^44
+		constexpr int64_t p10 = int64_t(1) << 40; // 16^10 = 2^40
+		constexpr int64_t p9 = int64_t(1) << 36;  // 16^9  = 2^36
+		constexpr int64_t p8 = int64_t(1) << 32;  // ...
+		constexpr int64_t p7 = int64_t(1) << 28;
+		constexpr int64_t p6 = int64_t(1) << 24;
+		constexpr int64_t p5 = int64_t(1) << 20;
+		constexpr int64_t p4 = int64_t(1) << 16;
+		constexpr int64_t p3 = int64_t(1) << 12;
+		constexpr int64_t p2 = int64_t(1) << 8;
+		constexpr int64_t p1 = int64_t(1) << 4;
+		constexpr int64_t p0 = 1;
+
+		BinaryExecutor::Execute<int64_t, int64_t, int64_t>(args.data[0], args.data[1], result, args.size(), [&](int64_t x, int64_t y) {
+			int64_t X = std::abs(x);
+			int64_t Y = std::abs(y);
+			int sx = EEA_Grid::sign(x);
+			int sy = EEA_Grid::sign(y);
+
+			int64_t grid_num = 0;
+		    grid_num += (x / 1000000) * p13;
+			grid_num += (y / 1000000) * p12;
+			grid_num += ((X / 100000) % 10) * p11 * sx;
+			grid_num += ((Y / 100000) % 10) * p10 * sy;
+			grid_num += ((X / 10000) % 10) * p9 * sx;
+			grid_num += ((Y / 10000) % 10) * p8 * sy;
+			grid_num += ((X / 1000) % 10) * p7 * sx;
+			grid_num += ((Y / 1000) % 10) * p6 * sy;
+			grid_num += ((X / 100) % 10) * p5 * sx;
+			grid_num += ((Y / 100) % 10) * p4 * sy;
+			grid_num += ((X / 10) % 10) * p3 * sx;
+			grid_num += ((Y / 10) % 10) * p2 * sy;
+			grid_num += (X % 10) * p1 * sx;
+			grid_num += (Y % 10) * p0 * sy;
+			return grid_num;
+		});
 	}
 
 	//! Returns the X-coordinate (EPSG:3035) of the grid cell corresponding to a given EEA Reference Grid code.
 	inline static void GridNum2CoordX(DataChunk &args, ExpressionState &state, Vector &result) {
 		D_ASSERT(args.data.size() == 1);
 
-		UnaryExecutor::Execute<int64_t, int64_t>(args.data[0], result, args.size(),
-		                                         [&](int64_t grid_num) { return 0; });
+		UnaryExecutor::Execute<int64_t, int64_t>(args.data[0], result, args.size(), [&](int64_t grid_num) {
+			int64_t x =
+			    ((grid_num / 0x10000000000000LL) & 0x0f) * 1000000 +
+			    ((grid_num / 0x00100000000000LL) & 0x0f) * 100000 +
+			    ((grid_num / 0x00001000000000LL) & 0x0f) * 10000 +
+			    ((grid_num / 0x00000010000000LL) & 0x0f) * 1000 +
+			    ((grid_num / 0x00000000100000LL) & 0x0f) * 100 +
+			    ((grid_num / 0x00000000001000LL) & 0x0f) * 10 +
+			    ((grid_num / 0x00000000000010LL) & 0x0f);
+
+			return x;
+		});
 	}
 
 	//! Returns the Y-coordinate (EPSG:3035) of the grid cell corresponding to a given EEA Reference Grid code.
 	inline static void GridNum2CoordY(DataChunk &args, ExpressionState &state, Vector &result) {
 		D_ASSERT(args.data.size() == 1);
 
-		UnaryExecutor::Execute<int64_t, int64_t>(args.data[0], result, args.size(),
-		                                         [&](int64_t grid_num) { return 0; });
+		UnaryExecutor::Execute<int64_t, int64_t>(args.data[0], result, args.size(), [&](int64_t grid_num) {
+			int64_t y =
+			    ((grid_num / 0x1000000000000LL) & 0x0f) * 1000000 +
+			    ((grid_num / 0x0010000000000LL) & 0x0f) * 100000 +
+			    ((grid_num / 0x0000100000000LL) & 0x0f) * 10000 +
+			    ((grid_num / 0x0000001000000LL) & 0x0f) * 1000 +
+			    ((grid_num / 0x0000000010000LL) & 0x0f) * 100 +
+			    ((grid_num / 0x0000000000100LL) & 0x0f) * 10 +
+			    ((grid_num / 0x0000000000001LL) & 0x0f);
+
+			return y;
+		});
 	}
 
 	static void Register(DatabaseInstance &db) {
@@ -79,23 +140,26 @@ struct EEA_Grid {
 		tags.insert("ext", "eeagrid");
 		tags.insert("category", "scalar");
 
-		RegisterFunction(db,
-		                 ScalarFunction("EEA_CoordXY2GridNum", {LogicalType::BIGINT, LogicalType::BIGINT},
-		                                LogicalType::BIGINT, EEA_Grid::CoordXY2GridNum),
-		                 "Returns the EEA Reference Grid code to a given XY coordinate (EPSG:3035).",
-		                 "SELECT CoordXY2GridNum();", tags);
+		RegisterFunction(
+		    db,
+		    ScalarFunction("EEA_CoordXY2GridNum", {LogicalType::BIGINT, LogicalType::BIGINT}, LogicalType::BIGINT, EEA_Grid::CoordXY2GridNum),
+		    "Returns the EEA Reference Grid code to a given XY coordinate (EPSG:3035).",
+		    "SELECT CoordXY2GridNum(5078600, 2871400); -> 23090257455218688",
+		    tags);
 
 		RegisterFunction(
 		    db,
 		    ScalarFunction("EEA_GridNum2CoordX", {LogicalType::BIGINT}, LogicalType::BIGINT, EEA_Grid::GridNum2CoordX),
 		    "Returns the X-coordinate (EPSG:3035) of the grid cell corresponding to a given EEA Reference Grid code.",
-		    "SELECT EEA_GridNum2CoordX();", tags);
+		    "SELECT EEA_GridNum2CoordX(23090257455218688); -> 5078600",
+		    tags);
 
 		RegisterFunction(
 		    db,
 		    ScalarFunction("EEA_GridNum2CoordY", {LogicalType::BIGINT}, LogicalType::BIGINT, EEA_Grid::GridNum2CoordY),
 		    "Returns the Y-coordinate (EPSG:3035) of the grid cell corresponding to a given EEA Reference Grid code.",
-		    "SELECT EEA_GridNum2CoordY();", tags);
+		    "SELECT EEA_GridNum2CoordY(23090257455218688); -> 2871400",
+		    tags);
 	}
 };
 
