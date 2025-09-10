@@ -5,17 +5,17 @@
 #include "duckdb/common/exception.hpp"
 #include "duckdb/catalog/catalog_entry/function_entry.hpp"
 #include "duckdb/function/scalar_function.hpp"
-#include "duckdb/main/extension_util.hpp"
 
 namespace duckdb {
 
 namespace {
 
 //! Register a function in the database and add its metadata.
-static void RegisterFunction(DatabaseInstance &db, ScalarFunction function, const string &description,
+static void RegisterFunction(ExtensionLoader &loader, ScalarFunction function, const string &description,
                              const string &example, InsertionOrderPreservingMap<string> &tags) {
 	// Register the function
-	ExtensionUtil::RegisterFunction(db, function);
+	loader.RegisterFunction(function);
+	auto &db = loader.GetDatabaseInstance();
 
 	auto &catalog = Catalog::GetSystemCatalog(db);
 	auto transaction = CatalogTransaction::GetSystemTransaction(db);
@@ -153,43 +153,44 @@ struct EEA_Grid {
 		                                         [&](int64_t grid_num) { return (grid_num & 1152921500311879680LL); });
 	}
 
-	static void Register(DatabaseInstance &db) {
+	static void Register(ExtensionLoader &loader) {
 
 		InsertionOrderPreservingMap<string> tags;
 		tags.insert("ext", "eeagrid");
 		tags.insert("category", "scalar");
 
-		RegisterFunction(db,
+		RegisterFunction(loader,
 		                 ScalarFunction("EEA_CoordXY2GridNum", {LogicalType::BIGINT, LogicalType::BIGINT},
 		                                LogicalType::BIGINT, EEA_Grid::CoordXY2GridNum),
 		                 "Returns the EEA Reference Grid code to a given XY coordinate (EPSG:3035).",
 		                 "SELECT CoordXY2GridNum(5078600, 2871400); -> 23090257455218688", tags);
 
 		RegisterFunction(
-		    db,
+		    loader,
 		    ScalarFunction("EEA_GridNum2CoordX", {LogicalType::BIGINT}, LogicalType::BIGINT, EEA_Grid::GridNum2CoordX),
 		    "Returns the X-coordinate (EPSG:3035) of the grid cell corresponding to a given EEA Reference Grid code.",
 		    "SELECT EEA_GridNum2CoordX(23090257455218688); -> 5078600", tags);
 
 		RegisterFunction(
-		    db,
+		    loader,
 		    ScalarFunction("EEA_GridNum2CoordY", {LogicalType::BIGINT}, LogicalType::BIGINT, EEA_Grid::GridNum2CoordY),
 		    "Returns the Y-coordinate (EPSG:3035) of the grid cell corresponding to a given EEA Reference Grid code.",
 		    "SELECT EEA_GridNum2CoordY(23090257455218688); -> 2871400", tags);
 
 		RegisterFunction(
-		    db,
+		    loader,
 		    ScalarFunction("EEA_GridNumAt100m", {LogicalType::BIGINT}, LogicalType::BIGINT, EEA_Grid::GridNumAt100m),
 		    "Returns the Grid code at 100 m resolution given an EEA reference Grid code.",
 		    "SELECT EEA_GridNumAt100m(23090257455218688); -> 23090257455218688", tags);
 
 		RegisterFunction(
-		    db, ScalarFunction("EEA_GridNumAt1km", {LogicalType::BIGINT}, LogicalType::BIGINT, EEA_Grid::GridNumAt1km),
+		    loader,
+		    ScalarFunction("EEA_GridNumAt1km", {LogicalType::BIGINT}, LogicalType::BIGINT, EEA_Grid::GridNumAt1km),
 		    "Returns the Grid code at 1 km resolution given an EEA reference Grid code.",
 		    "SELECT EEA_GridNumAt1km(23090257455218688); -> 23090257448665088", tags);
 
 		RegisterFunction(
-		    db,
+		    loader,
 		    ScalarFunction("EEA_GridNumAt10km", {LogicalType::BIGINT}, LogicalType::BIGINT, EEA_Grid::GridNumAt10km),
 		    "Returns the Grid code at 10 km resolution given an EEA reference Grid code.",
 		    "SELECT EEA_GridNumAt10km(23090257455218688); -> 23090255284404224", tags);
@@ -202,12 +203,12 @@ struct EEA_Grid {
 //  Register Functions & Extension metadata
 // ######################################################################################################################
 
-static void LoadInternal(DatabaseInstance &instance) {
-	EEA_Grid::Register(instance);
+static void LoadInternal(ExtensionLoader &loader) {
+	EEA_Grid::Register(loader);
 }
 
-void EeagridExtension::Load(DuckDB &db) {
-	LoadInternal(*db.instance);
+void EeagridExtension::Load(ExtensionLoader &loader) {
+	LoadInternal(loader);
 }
 std::string EeagridExtension::Name() {
 	return "eeagrid";
@@ -225,16 +226,7 @@ std::string EeagridExtension::Version() const {
 
 extern "C" {
 
-DUCKDB_EXTENSION_API void eeagrid_init(duckdb::DatabaseInstance &db) {
-	duckdb::DuckDB db_wrapper(db);
-	db_wrapper.LoadExtension<duckdb::EeagridExtension>();
-}
-
-DUCKDB_EXTENSION_API const char *eeagrid_version() {
-	return duckdb::DuckDB::LibraryVersion();
+DUCKDB_CPP_EXTENSION_ENTRY(eeagrid, loader) {
+	duckdb::LoadInternal(loader);
 }
 }
-
-#ifndef DUCKDB_EXTENSION_MAIN
-#error DUCKDB_EXTENSION_MAIN not defined
-#endif
