@@ -49,7 +49,7 @@ BIGINT EEA_GridNum2CoordX (gridNum BIGINT, resolution BIGINT)
 
 #### Description
 
-Returns the X-coordinate (EPSG:3035) of the grid cell corresponding to a given EEA Reference Grid code, optionally truncating the value to a specified resolution.
+Returns the X-coordinate (EPSG:3035) of the grid cell corresponding to a given EEA Reference Grid code, optionally truncating the value to a specified resolution. Valid resolutions are powers of ten up to 1,000,000.
 
 #### Example
 
@@ -71,7 +71,7 @@ BIGINT EEA_GridNum2CoordY (gridNum BIGINT, resolution BIGINT)
 
 #### Description
 
-Returns the Y-coordinate (EPSG:3035) of the grid cell corresponding to a given EEA Reference Grid code, optionally truncating the value to a specified resolution.
+Returns the Y-coordinate (EPSG:3035) of the grid cell corresponding to a given EEA Reference Grid code, optionally truncating the value to a specified resolution. Valid resolutions are powers of ten up to 1,000,000.
 
 #### Example
 
