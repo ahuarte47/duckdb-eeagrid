@@ -56,10 +56,10 @@ struct EEA_Grid {
 	}
 
 	//! Extracts a hexadecimal nibble from a specific position in the grid number and scales it.
-	inline static int32_t ExtractNibbleAndScale(int64_t grid_num, int64_t hex_divisor, int32_t factor) {
+	inline static int32_t ExtractNibbleAndScale(int64_t grid_num, int64_t hex_mask, int32_t factor) {
 		// Extract the nibble (4 bits) at the specified position,
-		// divide by hex_divisor to shift right, then mask with 0x0f to get lower 4 bits.
-		int32_t nibble = (static_cast<int32_t>(grid_num / hex_divisor) & 0x0f);
+		// divide by hex_mask to shift right, then mask with 0x0f to get lower 4 bits.
+		int32_t nibble = (static_cast<int32_t>(grid_num / hex_mask) & 0x0f);
 
 		// Ensure the nibble value is a valid decimal digit (0-9),
 		// Hex values A-F (10-15) are clamped to 9 to maintain decimal representation.
@@ -113,6 +113,14 @@ struct EEA_Grid {
 		                                                   });
 	}
 
+	//! Defines a hexadecimal divisor and decimal place factor entry.
+	struct MappingEntry {
+		int64_t hex_mask;
+		int32_t factor;
+		constexpr MappingEntry(int64_t h, int32_t f) : hex_mask(h), factor(f) {
+		}
+	};
+
 	//! Returns the X-coordinate (EPSG:3035) of the grid cell corresponding to a given EEA Reference Grid code.
 	inline static void GridNum2CoordX(DataChunk &args, ExpressionState &state, Vector &result) {
 		D_ASSERT(args.data.size() == 1);
@@ -120,7 +128,7 @@ struct EEA_Grid {
 		// Mapping array: {hexadecimal divisor for position extraction, decimal place factor}
 		// Each pair represents: (hex_position_divisor, decimal_place_value)
 		// Positions correspond to hexadecimal shifts (13, 11, 9, 7, 5, 3, 1)
-		constexpr std::pair<int64_t, int32_t> mapping_X[] = {
+		constexpr MappingEntry mapping_X[] = {
 		    {0x10000000000000LL, 1000000}, // Position 13: millions place
 		    {0x00100000000000LL, 100000},  // Position 11: hundred thousands place
 		    {0x00001000000000LL, 10000},   // Position 9:  ten thousands place
@@ -134,12 +142,12 @@ struct EEA_Grid {
 			int64_t x = 0;
 
 			// Process each position-factor pair in descending order of significance
-			for (const auto &item : mapping_X) {
-				int64_t hex_divisor = item.first;
-				int32_t factor = item.second;
+			for (const auto &entry : mapping_X) {
+				auto hex_mask = entry.hex_mask;
+				auto factor = entry.factor;
 
 				// Add the contribution of the digit to the final coordinate
-				x += EEA_Grid::ExtractNibbleAndScale(grid_num, hex_divisor, factor);
+				x += EEA_Grid::ExtractNibbleAndScale(grid_num, hex_mask, factor);
 			}
 
 			return x;
@@ -154,7 +162,7 @@ struct EEA_Grid {
 		// Mapping array: {hexadecimal divisor for position extraction, decimal place factor}
 		// Each pair represents: (hex_position_divisor, decimal_place_value)
 		// Positions correspond to hexadecimal shifts (13, 11, 9, 7, 5, 3, 1)
-		constexpr std::pair<int64_t, int32_t> mapping_X[] = {
+		constexpr MappingEntry mapping_X[] = {
 		    {0x10000000000000LL, 1000000}, // Position 13: millions place
 		    {0x00100000000000LL, 100000},  // Position 11: hundred thousands place
 		    {0x00001000000000LL, 10000},   // Position 9:  ten thousands place
@@ -182,14 +190,14 @@ struct EEA_Grid {
 			    }
 
 			    // Process each position-factor pair in descending order of significance
-			    for (const auto &item : mapping_X) {
-				    int64_t hex_divisor = item.first;
-				    int32_t factor = item.second;
+			    for (const auto &entry : mapping_X) {
+				    auto hex_mask = entry.hex_mask;
+				    auto factor = entry.factor;
 
 				    // Add the contribution of the digit to the final coordinate,
 				    // only if current factor is within resolution bounds
 				    if (resolution <= factor) {
-					    x += EEA_Grid::ExtractNibbleAndScale(grid_num, hex_divisor, factor);
+					    x += EEA_Grid::ExtractNibbleAndScale(grid_num, hex_mask, factor);
 				    }
 			    }
 
@@ -204,7 +212,7 @@ struct EEA_Grid {
 		// Mapping array: {hexadecimal divisor for position extraction, decimal place factor}
 		// Each pair represents: (hex_position_divisor, decimal_place_value)
 		// Positions correspond to hexadecimal shifts (12, 10, 8, 6, 4, 2, 0) - odd positions
-		constexpr std::pair<int64_t, int32_t> mapping_Y[] = {
+		constexpr MappingEntry mapping_Y[] = {
 		    {0x1000000000000LL, 1000000}, // Position 12: millions place
 		    {0x0010000000000LL, 100000},  // Position 10: hundred thousands place
 		    {0x0000100000000LL, 10000},   // Position 8:  ten thousands place
@@ -218,12 +226,12 @@ struct EEA_Grid {
 			int64_t y = 0;
 
 			// Process each position-factor pair in descending order of significance
-			for (const auto &item : mapping_Y) {
-				int64_t hex_divisor = item.first;
-				int32_t factor = item.second;
+			for (const auto &entry : mapping_Y) {
+				auto hex_mask = entry.hex_mask;
+				auto factor = entry.factor;
 
 				// Add the contribution of the digit to the final coordinate
-				y += EEA_Grid::ExtractNibbleAndScale(grid_num, hex_divisor, factor);
+				y += EEA_Grid::ExtractNibbleAndScale(grid_num, hex_mask, factor);
 			}
 
 			return y;
@@ -238,7 +246,7 @@ struct EEA_Grid {
 		// Mapping array: {hexadecimal divisor for position extraction, decimal place factor}
 		// Each pair represents: (hex_position_divisor, decimal_place_value)
 		// Positions correspond to hexadecimal shifts (12, 10, 8, 6, 4, 2, 0) - odd positions
-		constexpr std::pair<int64_t, int32_t> mapping_Y[] = {
+		constexpr MappingEntry mapping_Y[] = {
 		    {0x1000000000000LL, 1000000}, // Position 12: millions place
 		    {0x0010000000000LL, 100000},  // Position 10: hundred thousands place
 		    {0x0000100000000LL, 10000},   // Position 8:  ten thousands place
@@ -266,14 +274,14 @@ struct EEA_Grid {
 			    }
 
 			    // Process each position-factor pair in descending order of significance
-			    for (const auto &item : mapping_Y) {
-				    int64_t hex_divisor = item.first;
-				    int32_t factor = item.second;
+			    for (const auto &entry : mapping_Y) {
+				    auto hex_mask = entry.hex_mask;
+				    auto factor = entry.factor;
 
 				    // Add the contribution of the digit to the final coordinate,
 				    // only if current factor is within resolution bounds
 				    if (resolution <= factor) {
-					    y += EEA_Grid::ExtractNibbleAndScale(grid_num, hex_divisor, factor);
+					    y += EEA_Grid::ExtractNibbleAndScale(grid_num, hex_mask, factor);
 				    }
 			    }
 
