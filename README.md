@@ -21,6 +21,7 @@ The extension provides functions to calculate grid cell identifiers (`INT64`) fr
 ### Loading from community
 
 The DuckDB **EEA Reference Grid extension** is available as a signed [community extension](https://duckdb.org/community_extensions/list_of_extensions).
+See more details on its [DuckDB CE web page](https://duckdb.org/community_extensions/extensions/eeagrid.html).
 
 To install and load it, you can run the following SQL commands in DuckDB:
 
@@ -28,8 +29,6 @@ To install and load it, you can run the following SQL commands in DuckDB:
 INSTALL eeagrid FROM community;
 LOAD eeagrid;
 ```
-
-See more details on its [DuckDB CE web page](https://duckdb.org/community_extensions/extensions/eeagrid.html).
 
 ### Building from source
 
