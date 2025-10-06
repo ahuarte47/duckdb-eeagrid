@@ -29,6 +29,8 @@ INSTALL eeagrid FROM community;
 LOAD eeagrid;
 ```
 
+See more details on its [DuckDB CE web page](https://duckdb.org/community_extensions/extensions/eeagrid.html).
+
 ### Building from source
 
 This extension is based on the [DuckDB extension template](https://github.com/duckdb/extension-template).
