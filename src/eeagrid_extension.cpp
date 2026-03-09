@@ -49,7 +49,6 @@ static void RegisterFunction(ExtensionLoader &loader, FUNC function, const strin
 //======================================================================================================================
 
 struct EEA_Grid {
-
 	//! Returns the sign of a value: 1 for positive, -1 for negative, and 0 for zero.
 	inline static int Sign(int64_t val) {
 		return (val > 0) - (val < 0);
@@ -314,7 +313,6 @@ struct EEA_Grid {
 	}
 
 	static void Register(ExtensionLoader &loader) {
-
 		InsertionOrderPreservingMap<string> tags;
 		tags.insert("ext", "eeagrid");
 		tags.insert("category", "scalar");
