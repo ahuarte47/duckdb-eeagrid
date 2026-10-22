@@ -1,48 +1,13 @@
 #define DUCKDB_EXTENSION_MAIN
 
 #include "eeagrid_extension.hpp"
+#include "function_builder.hpp"
 #include "duckdb.hpp"
 #include "duckdb/common/exception.hpp"
-#include "duckdb/catalog/catalog_entry/function_entry.hpp"
-#include "duckdb/function/scalar_function.hpp"
 
 namespace duckdb {
 
 namespace {
-
-//! Register a function or functionSet in the database and add its metadata.
-template <typename FUNC>
-static void RegisterFunction(ExtensionLoader &loader, FUNC function, const string &description, const string &example,
-                             InsertionOrderPreservingMap<string> &tags) {
-	// Register the function
-	loader.RegisterFunction(function);
-	auto &db = loader.GetDatabaseInstance();
-
-	auto &catalog = Catalog::GetSystemCatalog(db);
-	auto transaction = CatalogTransaction::GetSystemTransaction(db);
-	auto &schema = catalog.GetSchema(transaction, DEFAULT_SCHEMA);
-	auto catalog_entry = schema.GetEntry(transaction, CatalogType::SCALAR_FUNCTION_ENTRY, function.name);
-	if (!catalog_entry) {
-		// This should not happen, we just registered the function
-		throw InternalException("Function with name \"%s\" not found.", function.name.c_str());
-	}
-
-	auto &func_entry = catalog_entry->template Cast<FunctionEntry>();
-
-	// Fill a function description and add it to the function entry
-	FunctionDescription func_description;
-	if (!description.empty()) {
-		func_description.description = description;
-	}
-	if (!example.empty()) {
-		func_description.examples.push_back(example);
-	}
-	for (const auto &tag : tags) {
-		func_entry.tags.insert(tag.first, tag.second);
-	}
-
-	func_entry.descriptions.push_back(func_description);
-}
 
 //======================================================================================================================
 // EEA_Grid
@@ -313,58 +278,116 @@ struct EEA_Grid {
 	}
 
 	static void Register(ExtensionLoader &loader) {
-		InsertionOrderPreservingMap<string> tags;
-		tags.insert("ext", "eeagrid");
-		tags.insert("category", "scalar");
+		FunctionBuilder::RegisterScalar(loader, "EEA_CoordXY2GridNum", [](ScalarFunctionBuilder &func) {
+			func.AddVariant([](ScalarFunctionVariantBuilder &variant) {
+				variant.AddParameter("X", LogicalType::BIGINT);
+				variant.AddParameter("Y", LogicalType::BIGINT);
+				variant.SetReturnType(LogicalType::BIGINT);
 
-		RegisterFunction<ScalarFunction>(loader,
-		                                 ScalarFunction("EEA_CoordXY2GridNum",
-		                                                {LogicalType::BIGINT, LogicalType::BIGINT}, LogicalType::BIGINT,
-		                                                EEA_Grid::CoordXY2GridNum),
-		                                 "Returns the EEA Reference Grid code to a given XY coordinate (EPSG:3035).",
-		                                 "SELECT CoordXY2GridNum(5078600, 2871400); -> 23090257455218688", tags);
+				variant.SetFunction(EEA_Grid::CoordXY2GridNum);
+				variant.CanThrowErrors();
+			});
 
-		ScalarFunctionSet gridNum2CoordX("EEA_GridNum2CoordX");
-		gridNum2CoordX.AddFunction(
-		    ScalarFunction({LogicalType::BIGINT}, LogicalType::BIGINT, EEA_Grid::GridNum2CoordX));
-		gridNum2CoordX.AddFunction(ScalarFunction({LogicalType::BIGINT, LogicalType::BIGINT}, LogicalType::BIGINT,
-		                                          EEA_Grid::GridNum2CoordXAtRes));
+			func.SetDescription("Returns the EEA Reference Grid code to a given XY coordinate (EPSG:3035).");
+			func.SetExample("SELECT EEA_CoordXY2GridNum(5078600, 2871400); -> 23090257455218688");
+			func.SetTag("ext", "eeagrid");
+			func.SetTag("category", "scalar");
+		});
 
-		RegisterFunction<ScalarFunctionSet>(
-		    loader, gridNum2CoordX,
-		    "Returns the X-coordinate (EPSG:3035) of the grid cell corresponding to a given EEA Reference Grid code, "
-		    "optionally truncating the value to a specified resolution.",
-		    "SELECT EEA_GridNum2CoordX(23090257455218688); -> 5078600", tags);
+		FunctionBuilder::RegisterScalar(loader, "EEA_GridNum2CoordX", [](ScalarFunctionBuilder &func) {
+			func.AddVariant([](ScalarFunctionVariantBuilder &variant) {
+				variant.AddParameter("GridNum", LogicalType::BIGINT);
+				variant.SetReturnType(LogicalType::BIGINT);
 
-		ScalarFunctionSet gridNum2CoordY("EEA_GridNum2CoordY");
-		gridNum2CoordY.AddFunction(
-		    ScalarFunction({LogicalType::BIGINT}, LogicalType::BIGINT, EEA_Grid::GridNum2CoordY));
-		gridNum2CoordY.AddFunction(ScalarFunction({LogicalType::BIGINT, LogicalType::BIGINT}, LogicalType::BIGINT,
-		                                          EEA_Grid::GridNum2CoordYAtRes));
+				variant.SetFunction(EEA_Grid::GridNum2CoordX);
+				variant.CanThrowErrors();
+			});
 
-		RegisterFunction<ScalarFunctionSet>(
-		    loader, gridNum2CoordY,
-		    "Returns the Y-coordinate (EPSG:3035) of the grid cell corresponding to a given EEA Reference Grid code, "
-		    "optionally truncating the value to a specified resolution.",
-		    "SELECT EEA_GridNum2CoordY(23090257455218688); -> 2871400", tags);
+			func.AddVariant([](ScalarFunctionVariantBuilder &variant) {
+				variant.AddParameter("GridNum", LogicalType::BIGINT);
+				variant.AddParameter("Resolution", LogicalType::BIGINT);
+				variant.SetReturnType(LogicalType::BIGINT);
 
-		RegisterFunction<ScalarFunction>(
-		    loader,
-		    ScalarFunction("EEA_GridNumAt100m", {LogicalType::BIGINT}, LogicalType::BIGINT, EEA_Grid::GridNumAt100m),
-		    "Returns the Grid code at 100 m resolution given an EEA reference Grid code.",
-		    "SELECT EEA_GridNumAt100m(23090257455218688); -> 23090257455218688", tags);
+				variant.SetFunction(EEA_Grid::GridNum2CoordXAtRes);
+				variant.CanThrowErrors();
+			});
 
-		RegisterFunction<ScalarFunction>(
-		    loader,
-		    ScalarFunction("EEA_GridNumAt1km", {LogicalType::BIGINT}, LogicalType::BIGINT, EEA_Grid::GridNumAt1km),
-		    "Returns the Grid code at 1 km resolution given an EEA reference Grid code.",
-		    "SELECT EEA_GridNumAt1km(23090257455218688); -> 23090257448665088", tags);
+			func.SetDescription("Returns the X-coordinate (EPSG:3035) of the grid cell corresponding to a given EEA "
+			                    "Reference Grid code, optionally truncating the value to a specified resolution.");
+			func.SetExample("SELECT EEA_GridNum2CoordX(23090257455218688); -> 5078600");
+			func.SetTag("ext", "eeagrid");
+			func.SetTag("category", "scalar");
+		});
 
-		RegisterFunction<ScalarFunction>(
-		    loader,
-		    ScalarFunction("EEA_GridNumAt10km", {LogicalType::BIGINT}, LogicalType::BIGINT, EEA_Grid::GridNumAt10km),
-		    "Returns the Grid code at 10 km resolution given an EEA reference Grid code.",
-		    "SELECT EEA_GridNumAt10km(23090257455218688); -> 23090255284404224", tags);
+		FunctionBuilder::RegisterScalar(loader, "EEA_GridNum2CoordY", [](ScalarFunctionBuilder &func) {
+			func.AddVariant([](ScalarFunctionVariantBuilder &variant) {
+				variant.AddParameter("GridNum", LogicalType::BIGINT);
+				variant.SetReturnType(LogicalType::BIGINT);
+
+				variant.SetFunction(EEA_Grid::GridNum2CoordY);
+				variant.CanThrowErrors();
+			});
+
+			func.AddVariant([](ScalarFunctionVariantBuilder &variant) {
+				variant.AddParameter("GridNum", LogicalType::BIGINT);
+				variant.AddParameter("Resolution", LogicalType::BIGINT);
+				variant.SetReturnType(LogicalType::BIGINT);
+
+				variant.SetFunction(EEA_Grid::GridNum2CoordYAtRes);
+				variant.CanThrowErrors();
+			});
+
+			func.SetDescription("Returns the Y-coordinate (EPSG:3035) of the grid cell corresponding to a given EEA "
+			                    "Reference Grid code, optionally truncating the value to a specified resolution.");
+			func.SetExample("SELECT EEA_GridNum2CoordY(23090257455218688); -> 2871400");
+			func.SetTag("ext", "eeagrid");
+			func.SetTag("category", "scalar");
+		});
+
+		FunctionBuilder::RegisterScalar(loader, "EEA_GridNumAt100m", [](ScalarFunctionBuilder &func) {
+			func.AddVariant([](ScalarFunctionVariantBuilder &variant) {
+				variant.AddParameter("GridNum", LogicalType::BIGINT);
+				variant.SetReturnType(LogicalType::BIGINT);
+
+				variant.SetFunction(EEA_Grid::GridNumAt100m);
+				variant.CanThrowErrors();
+			});
+
+			func.SetDescription("Returns the Grid code at 100 m resolution given an EEA reference Grid code.");
+			func.SetExample("SELECT EEA_GridNumAt100m(23090257455218688); -> 23090257455218688");
+			func.SetTag("ext", "eeagrid");
+			func.SetTag("category", "scalar");
+		});
+
+		FunctionBuilder::RegisterScalar(loader, "EEA_GridNumAt1km", [](ScalarFunctionBuilder &func) {
+			func.AddVariant([](ScalarFunctionVariantBuilder &variant) {
+				variant.AddParameter("GridNum", LogicalType::BIGINT);
+				variant.SetReturnType(LogicalType::BIGINT);
+
+				variant.SetFunction(EEA_Grid::GridNumAt1km);
+				variant.CanThrowErrors();
+			});
+
+			func.SetDescription("Returns the Grid code at 1 km resolution given an EEA reference Grid code.");
+			func.SetExample("SELECT EEA_GridNumAt1km(23090257455218688); -> 23090257448665088");
+			func.SetTag("ext", "eeagrid");
+			func.SetTag("category", "scalar");
+		});
+
+		FunctionBuilder::RegisterScalar(loader, "EEA_GridNumAt10km", [](ScalarFunctionBuilder &func) {
+			func.AddVariant([](ScalarFunctionVariantBuilder &variant) {
+				variant.AddParameter("GridNum", LogicalType::BIGINT);
+				variant.SetReturnType(LogicalType::BIGINT);
+
+				variant.SetFunction(EEA_Grid::GridNumAt10km);
+				variant.CanThrowErrors();
+			});
+
+			func.SetDescription("Returns the Grid code at 10 km resolution given an EEA reference Grid code.");
+			func.SetExample("SELECT EEA_GridNumAt10km(23090257455218688); -> 23090255284404224");
+			func.SetTag("ext", "eeagrid");
+			func.SetTag("category", "scalar");
+		});
 	}
 };
 
