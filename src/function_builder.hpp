@@ -78,7 +78,7 @@ inline void ScalarFunctionVariantBuilder::SetReturnType(LogicalType type) {
 }
 
 inline void ScalarFunctionVariantBuilder::SetFunction(scalar_function_t fn) {
-	function.SetFunctionCallback(fn);
+	function.SetFunctionCallback(std::move(fn));
 }
 
 inline void ScalarFunctionVariantBuilder::SetInit(init_local_state_t init) {
